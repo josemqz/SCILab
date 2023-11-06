@@ -11,10 +11,10 @@
 # Configuracion lector QR *
 # Configuracion sensor NFC (later)
 
-
-from keypad import *
-from lcd import *
-from relay import *
+# como importar automaticamente desde src
+from src.keypad import *
+#from src.lcd import *
+from src.relay import *
 
 import re
 import requests
@@ -23,7 +23,7 @@ from time import sleep
 
 # manejar interrupciones a programa
 def safe_exit(signum, frame):
-	lcd.clear()
+	#lcd.clear()
 	print("\n\n- - - Sistema detenido. - - -\n")
 	exit(1)
 
@@ -58,7 +58,7 @@ def add_ingreso(id):
 # acciones al verificar identidad
 def ingreso(autorizacion):
 	if autorizacion:
-		lcd_print("Acceso", "- autorizado -")
+		#lcd_print("Acceso", "- autorizado -")
 		print("Acceso autorizado.")
 
 		# senial a relay
@@ -67,10 +67,10 @@ def ingreso(autorizacion):
 
 		sleep(5)
 		open_relay(False)
-		lcd.clear()
+		#lcd.clear()
 		
 	else:
-		lcd_print("Acceso", "- denegado -")
+		#lcd_print("Acceso", "- denegado -")
 		print("Acceso denegado.")
 		
 
@@ -79,7 +79,7 @@ def ingreso(autorizacion):
 		open_relay(False)
 
 		sleep(3)
-		lcd.clear()
+		#lcd.clear()
 
 
 # obtener digito verificador para caso de TUI
@@ -105,7 +105,7 @@ while(1):
 	hora_act = datetime.now().time()
 	print(hora_act) # TEST
 	
-	lcd_print("Bienvenid@ a", "FabLab!", False)
+	#lcd_print("Bienvenid@ a", "FabLab!", False)
 	
 	# cambiar comportamiento por horario o codigo en numpad
 	if (not hora_act >= hora_min and hora_act <= hora_max):
@@ -136,7 +136,7 @@ while(1):
 			# TUI
 			if cod_card == "87004":
 				
-				lcd_print("Verificando", "TUI...")
+				#lcd_print("Verificando", "TUI...")
 				num_tui = qr[5:10]
 				rut = qr[10:]
 				
@@ -148,22 +148,26 @@ while(1):
 			# CI
 			elif cod_card == "https":
 				
-				lcd_print("Verificando", "CI...")
+				#lcd_print("Verificando", "CI...")
 				rut = qr.split('RUN=')[1].split('&')[0]
 				sleep(1)
 
 			# Tarjeta sin formato valido
 			else:
 				
-				lcd_print("Tarjeta", "invalida.")
+				#lcd_print("Tarjeta", "invalida.")
 				print("Tarjeta invalida.\n")
 				sleep(3)
-				lcd.clear()
+				#lcd.clear()
 				continue
 
 
 			# HTTP GET request
-			persona = get_persona(rut)
+			try:
+				persona = get_persona(rut)
+			except:
+				print("Error de conexion a servidor")
+				continue
 
 			# modificar segun comportamiento de server real
 			if persona['status'] == 200:
@@ -180,11 +184,16 @@ while(1):
 			print("\n")
 
 
-	# funcionamiento por numpad (fuera de horario)
-	# todo: arreglar funcionamiento de teclado (repeticion de teclas)
+	# funcionamiento por keypad (fuera de horario de funcionamiento de FabLab) 
+	# TODO: mostrar * en pantalla
 	else:
-		print("\nEsperando codigo en numpad...")
+		print("\nEsperando codigo en keypad...")
 		
+		# se realiza ingreso dependiendo del codigo ingresado en keypad
+		ingreso(verificar_keypad())
+		
+		
+		"""
 		cod = ''.join(numpad_code())
 		print("code recibido: ", cod)
 		# imprimir * en pantalla
@@ -193,3 +202,4 @@ while(1):
 			ingreso(1)
 		else:
 			ingreso(0)
+		"""
