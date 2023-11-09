@@ -9,7 +9,7 @@
     This code is provided in support of the following YouTube tutorial:
     https://youtu.be/DHbLBTRpTWM
 
-    THIS SOFTWARE AND LINKED VIDEO TOTORIAL ARE PROVIDED "AS IS" AND THE
+    THIS SOFTWARE AND LINKED VIDEO TUTORIAL ARE PROVIDED "AS IS" AND THE
     AUTHOR DISCLAIMS ALL WARRANTIES INCLUDING ALL IMPLIED WARRANTIES OF
     MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
     ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
@@ -20,9 +20,14 @@
 
 from rpi_lcd import LCD
 
-lcd = LCD()
+"""
+lcd: instancia de LCD()
+msg1: mensaje a imprimir en primera fila
+msg2: mensaje a imprimir en segunda fila
+do_clear: vaciar pantalla antes de imprimir
+"""
 
-def lcd_print(msg1, msg2="", do_clear=True):
+def lcd_print(lcd, msg1, msg2="", do_clear=True):
 
     if do_clear:
         lcd.clear() 

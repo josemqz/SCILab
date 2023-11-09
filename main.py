@@ -13,7 +13,7 @@
 
 # como importar automaticamente desde src
 from src.keypad import *
-#from src.lcd import *
+from src.lcd import *
 from src.relay import *
 
 import re
@@ -23,7 +23,7 @@ from time import sleep
 
 # manejar interrupciones a programa
 def safe_exit(signum, frame):
-	#lcd.clear()
+	lcd.clear()
 	print("\n\n- - - Sistema detenido. - - -\n")
 	exit(1)
 
@@ -32,6 +32,7 @@ signal(SIGTERM, safe_exit)
 signal(SIGHUP, safe_exit)
 signal(SIGINT, safe_exit)
 
+lcd = LCD()
 
 server_url = "http://127.0.0.1:5000"
 
@@ -58,7 +59,7 @@ def add_ingreso(id):
 # acciones al verificar identidad
 def ingreso(autorizacion):
 	if autorizacion:
-		#lcd_print("Acceso", "- autorizado -")
+		lcd_print(lcd, "Acceso", "- autorizado -")
 		print("Acceso autorizado.")
 
 		# senial a relay
@@ -67,10 +68,10 @@ def ingreso(autorizacion):
 
 		sleep(5)
 		open_relay(False)
-		#lcd.clear()
+		lcd.clear()
 		
 	else:
-		#lcd_print("Acceso", "- denegado -")
+		lcd_print(lcd, "Acceso", "- denegado -")
 		print("Acceso denegado.")
 		
 
@@ -79,7 +80,7 @@ def ingreso(autorizacion):
 		open_relay(False)
 
 		sleep(3)
-		#lcd.clear()
+		lcd.clear()
 
 
 # obtener digito verificador para caso de TUI
@@ -98,21 +99,22 @@ hora_min = datetime.strptime("10:55","%H:%M").time()
 hora_max = datetime.strptime("17:00","%H:%M").time()
 
 # loop
-l = 0 # TEST
+#l = 0 # TEST
 while(1):
-	l+=1 # TEST
+	#l+=1 # TEST
 	
 	hora_act = datetime.now().time()
 	print(hora_act) # TEST
 	
-	#lcd_print("Bienvenid@ a", "FabLab!", False)
+	lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
 	
 	# cambiar comportamiento por horario o codigo en numpad
-	if (not hora_act >= hora_min and hora_act <= hora_max):
+	if (hora_act >= hora_min and hora_act <= hora_max):
 		
 		# check QR
-		#qr = input()
+		qr = input()
 		
+		"""
 		# BEGIN TEST v v v
 		if l%8== 0:
 			qr = "87004123457524654"
@@ -125,6 +127,7 @@ while(1):
 		else:
 			qr=""
 		# END TEST
+		"""
 		
 		if len(qr) > 0:
 
@@ -132,33 +135,36 @@ while(1):
 			# TUI: 87004 (codigo 5 digitos) (RUT sin digito verificador)
 			# RUT: https://portal.sidivregistrocivil.cl/docstatus&RUN=(RUT)&type=CEDULA&...
 			cod_card = qr[:5]
+			#print("qr:", qr)
+			#print("cod_card:", cod_card)
 			
 			# TUI
 			if cod_card == "87004":
 				
-				#lcd_print("Verificando", "TUI...")
+				lcd_print(lcd, "Verificando", "TUI...")
 				num_tui = qr[5:10]
 				rut = qr[10:]
 				
 				# obtener digito verificador
 				rut += "-"+dig_verificador(rut)
+				print("rut:", rut)
 				
 				sleep(1)
 
 			# CI
 			elif cod_card == "https":
 				
-				#lcd_print("Verificando", "CI...")
+				lcd_print(lcd, "Verificando", "CI...")
 				rut = qr.split('RUN=')[1].split('&')[0]
+				print("rut:", rut)
 				sleep(1)
 
 			# Tarjeta sin formato valido
 			else:
 				
-				#lcd_print("Tarjeta", "invalida.")
+				lcd_print(lcd, "Tarjeta", "invalida.")
 				print("Tarjeta invalida.\n")
 				sleep(3)
-				#lcd.clear()
 				continue
 
 
@@ -185,21 +191,8 @@ while(1):
 
 
 	# funcionamiento por keypad (fuera de horario de funcionamiento de FabLab) 
-	# TODO: mostrar * en pantalla
 	else:
 		print("\nEsperando codigo en keypad...")
 		
 		# se realiza ingreso dependiendo del codigo ingresado en keypad
-		ingreso(verificar_keypad())
-		
-		
-		"""
-		cod = ''.join(numpad_code())
-		print("code recibido: ", cod)
-		# imprimir * en pantalla
-		
-		if cod == "3178": # ejemplo de codigo de ingreso
-			ingreso(1)
-		else:
-			ingreso(0)
-		"""
+		ingreso(verificar_keypad(lcd))
