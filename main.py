@@ -7,6 +7,7 @@
 # configurar registro para personas nuevas (Forms o Classroom)
 
 # desactivar interfaz grafica predeterminadamente
+# crontab: systemctl stop lightdm ?
 
 # Configuracion lector QR *
 # Configuracion sensor NFC (later)
@@ -15,8 +16,10 @@
 from src.keypad import *
 from src.lcd import *
 from src.relay import *
+from src.button import *
+from src.threads import *
 
-import re
+# import re
 import requests
 from datetime import datetime
 from time import sleep
@@ -48,6 +51,7 @@ def get_persona(rut):
 	print("[get_persona] persona:", persona)
 	return persona
 
+# post ingreso a BD
 def add_ingreso(id):
 	# lo mismo, depende del funcionamiento del server cuando haya que obtener el tiempo
 	#tiempo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -57,6 +61,7 @@ def add_ingreso(id):
 
 
 # acciones al verificar identidad
+# autorizacion: bool, indica si se debe permitir el ingreso
 def ingreso(autorizacion):
 	if autorizacion:
 		lcd_print(lcd, "Acceso", "- autorizado -")
@@ -73,8 +78,6 @@ def ingreso(autorizacion):
 	else:
 		lcd_print(lcd, "Acceso", "- denegado -")
 		print("Acceso denegado.")
-		
-
 		# deberia solo mantenerse activado el bloqueo
 		print("Relay desactivado.")
 		open_relay(False)
@@ -83,53 +86,33 @@ def ingreso(autorizacion):
 		lcd.clear()
 
 
-# obtener digito verificador para caso de TUI
-def dig_verificador(rut):
-	secuencia = [2,3,4,5,6,7,2,3,4]
-	df = 0
-	rut = rut[::-1]
-	for i,r in enumerate(rut):
-		df += int(r)*secuencia[i]
-	df %= 11
-	return str(11-df)
-
-
-# horarios de funcionamiento de laboratorio
-hora_min = datetime.strptime("10:55","%H:%M").time()
-hora_max = datetime.strptime("17:00","%H:%M").time()
-
-# loop
-#l = 0 # TEST
-while(1):
-	#l+=1 # TEST
+# funcion de thread de lector qr
+def ingreso_qr(lock):
+	# check QR
+	qr = input()
 	
-	hora_act = datetime.now().time()
-	print(hora_act) # TEST
+	"""
+	# BEGIN TEST v v v
+	if l%8== 0:
+		qr = "87004123457524654"
+	elif l%10 == 0:
+		qr = "https://gob.cl/q?RUN=7524654-K&type=CEDULA&serial=123456"
+	elif l%4 == 0:
+		qr ="https://gob.cl/q?RUN=19948797-3&type=CEDULA&serial=123456"
+	elif l%5 == 0:
+		qr = "87004123459773126"
+	else:
+		qr=""
+	# END TEST
+	"""
 	
-	lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
-	
-	# cambiar comportamiento por horario o codigo en numpad
-	if (hora_act >= hora_min and hora_act <= hora_max):
-		
-		# check QR
-		qr = input()
-		
-		"""
-		# BEGIN TEST v v v
-		if l%8== 0:
-			qr = "87004123457524654"
-		elif l%10 == 0:
-			qr = "https://gob.cl/q?RUN=7524654-K&type=CEDULA&serial=123456"
-		elif l%4 == 0:
-			qr ="https://gob.cl/q?RUN=19948797-3&type=CEDULA&serial=123456"
-		elif l%5 == 0:
-			qr = "87004123459773126"
-		else:
-			qr=""
-		# END TEST
-		"""
-		
-		if len(qr) > 0:
+	# bloquear thread si hay input
+	if len(qr) > 0:
+		with lock:
+			
+			# flag global para indicar bloqueo
+			global runningQR
+			runningQR = True
 
 			# verificacion tipo de tarjeta
 			# TUI: 87004 (codigo 5 digitos) (RUT sin digito verificador)
@@ -142,7 +125,7 @@ while(1):
 			if cod_card == "87004":
 				
 				lcd_print(lcd, "Verificando", "TUI...")
-				num_tui = qr[5:10]
+				# num_tui = qr[5:10]
 				rut = qr[10:]
 				
 				# obtener digito verificador
@@ -165,15 +148,20 @@ while(1):
 				lcd_print(lcd, "Tarjeta", "invalida.")
 				print("Tarjeta invalida.\n")
 				sleep(3)
-				continue
-
+				
+				runningQR = False
+				return
+				# continue
 
 			# HTTP GET request
 			try:
 				persona = get_persona(rut)
 			except:
 				print("Error de conexion a servidor")
-				continue
+
+				runningQR = False
+				return
+				# continue
 
 			# modificar segun comportamiento de server real
 			if persona['status'] == 200:
@@ -189,10 +177,91 @@ while(1):
 				ingreso(0)
 			print("\n")
 
+			runningQR = False
 
-	# funcionamiento por keypad (fuera de horario de funcionamiento de FabLab) 
-	else:
-		print("\nEsperando codigo en keypad...")
-		
-		# se realiza ingreso dependiendo del codigo ingresado en keypad
-		ingreso(verificar_keypad(lcd))
+
+# funcion de thread de keypad
+def ingreso_keypad(lock):
+	global runningKeypad
+	print("\nEsperando codigo en keypad...")
+	
+	# se realiza ingreso dependiendo del codigo ingresado en keypad
+	vk = verificar_keypad(lcd)
+	if vk:
+		with lock:
+			runningKeypad = True
+			ingreso(1)
+			runningKeypad = False
+
+# funcion de thread de boton
+def ingreso_boton(lock):
+	if pressedButton:
+		with lock:
+			global runningButton
+			runningButton = True
+			ingreso(1)
+			runningButton = False
+			pressedButton = False
+
+
+# obtener digito verificador para caso de TUI
+def dig_verificador(rut):
+	secuencia = [2,3,4,5,6,7,2,3,4]
+	df = 0
+	rut = rut[::-1]
+	for i,r in enumerate(rut):
+		df += int(r)*secuencia[i]
+	df %= 11
+	return str(11-df)
+
+
+# horarios de funcionamiento de laboratorio
+# hora_min = datetime.strptime("10:55","%H:%M").time()
+# hora_max = datetime.strptime("17:00","%H:%M").time()
+
+
+# configuración threads
+lock = threading.Lock()
+
+# flag para thread de cada operacion
+runningButton = False
+runningKeypad = False
+runningQR = False
+
+# event1 = threading.Event()
+# event2 = threading.Event()
+# event3 = threading.Event()
+
+threadButton = threading.Thread(target=ingreso_boton, args=(lock))
+threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock))
+threadQR = threading.Thread(target=ingreso_qr, args=(lock))
+
+# threadButton = StoppableThread(target=ingreso_boton, args=(lock))
+# threadKeypad = StoppableThread(target=ingreso_keypad, args=(lock))
+# threadQR = StoppableThread(target=ingreso_qr, args=(lock))
+
+threads = [threadButton, threadKeypad, threadQR]
+
+# loop
+#l = 0 # TEST
+while(1):
+	#l+=1 # TEST
+	
+	hora_act = datetime.now().time()
+	print(hora_act) # TEST
+	
+	lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
+	
+	# cambiar comportamiento por horario o codigo en numpad
+	# if (hora_act >= hora_min and hora_act <= hora_max):
+	
+	# usar qr y teclado al mismo tiempo (y botón)
+	for t in range(len(threads)):
+		if not threads[t].is_alive():
+			
+			print("creating new instance thread i")
+
+			act_thread = threads.pop(t)
+			new_thread = threading.Thread(target=act_thread.target, args=(lock))
+			threads.append(new_thread)
+			threads[-1].start()
