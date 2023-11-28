@@ -12,6 +12,11 @@
 # Configuracion lector QR *
 # Configuracion sensor NFC (later)
 
+
+# arreglar funcionamiento boton
+# arreglar cableado teclado
+# cambiar threading por multiprocessing
+
 # como importar automaticamente desde src
 from src.keypad import *
 from src.lcd import *
@@ -39,7 +44,23 @@ lcd = LCD()
 
 server_url = "http://127.0.0.1:5000"
 
-# HTTP requests a server con datos de usuarios
+# horarios de funcionamiento de laboratorio
+# hora_min = datetime.strptime("10:55","%H:%M").time()
+# hora_max = datetime.strptime("17:00","%H:%M").time()
+
+
+# obtener digito verificador para caso de TUI
+def dig_verificador(rut):
+	secuencia = [2,3,4,5,6,7,2,3,4]
+	df = 0
+	rut = rut[::-1]
+	for i,r in enumerate(rut):
+		df += int(r)*secuencia[i]
+	df %= 11
+	return str(11-df)
+
+
+# - HTTP requests a server con datos de usuarios -
 def get_persona(rut):
 	response = requests.get(url=server_url+"/get_persona", 
 							params={'rut':rut})
@@ -62,9 +83,10 @@ def add_ingreso(id):
 
 # acciones al verificar identidad
 # autorizacion: bool, indica si se debe permitir el ingreso
-def ingreso(autorizacion):
+def ingreso(autorizacion, do_lcd_print=True):
 	if autorizacion:
-		lcd_print(lcd, "Acceso", "- autorizado -")
+		if do_lcd_print:
+			lcd_print(lcd, "Acceso", "- autorizado -")
 		print("Acceso autorizado.")
 
 		# senial a relay
@@ -73,17 +95,20 @@ def ingreso(autorizacion):
 
 		sleep(5)
 		open_relay(False)
-		lcd.clear()
+		if do_lcd_print:
+			lcd.clear()
 		
 	else:
-		lcd_print(lcd, "Acceso", "- denegado -")
+		if do_lcd_print:
+			lcd_print(lcd, "Acceso", "- denegado -")
 		print("Acceso denegado.")
 		# deberia solo mantenerse activado el bloqueo
 		print("Relay desactivado.")
 		open_relay(False)
 
 		sleep(3)
-		lcd.clear()
+		if do_lcd_print:
+			lcd.clear()
 
 
 # funcion de thread de lector qr
@@ -195,32 +220,20 @@ def ingreso_keypad(lock):
 
 # funcion de thread de boton
 def ingreso_boton(lock):
-	if pressedButton:
-		with lock:
-			global runningButton
-			runningButton = True
-			ingreso(1)
-			runningButton = False
-			pressedButton = False
+	global pressedButton
+	
+	while not pressedButton:
+		pass	
+	
+	with lock:
+		global runningButton
+		runningButton = True
+		ingreso(1, do_lcd_print=False)
+		runningButton = False
+		pressedButton = False
 
 
-# obtener digito verificador para caso de TUI
-def dig_verificador(rut):
-	secuencia = [2,3,4,5,6,7,2,3,4]
-	df = 0
-	rut = rut[::-1]
-	for i,r in enumerate(rut):
-		df += int(r)*secuencia[i]
-	df %= 11
-	return str(11-df)
-
-
-# horarios de funcionamiento de laboratorio
-# hora_min = datetime.strptime("10:55","%H:%M").time()
-# hora_max = datetime.strptime("17:00","%H:%M").time()
-
-
-# configuración threads
+# - configuración threads -
 lock = threading.Lock()
 
 # flag para thread de cada operacion
@@ -232,9 +245,9 @@ runningQR = False
 # event2 = threading.Event()
 # event3 = threading.Event()
 
-threadButton = threading.Thread(target=ingreso_boton, args=(lock))
-threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock))
-threadQR = threading.Thread(target=ingreso_qr, args=(lock))
+threadButton = threading.Thread(target=ingreso_boton, args=(lock,))
+threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock,))
+threadQR = threading.Thread(target=ingreso_qr, args=(lock,))
 
 # threadButton = StoppableThread(target=ingreso_boton, args=(lock))
 # threadKeypad = StoppableThread(target=ingreso_keypad, args=(lock))
@@ -242,26 +255,36 @@ threadQR = threading.Thread(target=ingreso_qr, args=(lock))
 
 threads = [threadButton, threadKeypad, threadQR]
 
+for t in threads:
+	t.start()
+
 # loop
 #l = 0 # TEST
 while(1):
 	#l+=1 # TEST
 	
 	hora_act = datetime.now().time()
-	print(hora_act) # TEST
+	#print(hora_act) # TEST
 	
+	#if 
 	lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
 	
 	# cambiar comportamiento por horario o codigo en numpad
 	# if (hora_act >= hora_min and hora_act <= hora_max):
 	
 	# usar qr y teclado al mismo tiempo (y botón)
-	for t in range(len(threads)):
-		if not threads[t].is_alive():
-			
-			print("creating new instance thread i")
+	
+	if not threadQR.is_alive():
+		print("creating new instance threadQR")
+		threadQR = threading.Thread(target=ingreso_qr, args=(lock,))
+		threadQR.start()
+		
+	if not threadKeypad.is_alive():
+		print("creating new instance threadKeypad")
+		threadKeypad = threading.Thread(target=ingreso_keyboard, args=(lock,))
+		threadKeypad.start()
 
-			act_thread = threads.pop(t)
-			new_thread = threading.Thread(target=act_thread.target, args=(lock))
-			threads.append(new_thread)
-			threads[-1].start()
+	if not threadButton.is_alive():
+		print("creating new instance threadButton")
+		threadButton = threading.Thread(target=ingreso_boton, args=(lock,))
+		threadButton.start()

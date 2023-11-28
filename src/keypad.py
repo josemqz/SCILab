@@ -140,10 +140,10 @@ def verificar_keypad(lcd):
                 readLine(L2, ["4","5","6","B"])
                 readLine(L3, ["7","8","9","C"])
                 readLine(L4, ["*","0","#","D"])
-                if len(codigo) > 0:
-                    lcd_print(lcd, "*"*len(codigo))
-                else:
-                    lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
+                #if len(codigo) > 0:
+                #    lcd_print(lcd, "*"*len(codigo))
+                #else:
+                 #   lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
                 time.sleep(0.1)
             else:
                 codigo = ""
