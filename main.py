@@ -28,6 +28,7 @@ from src.threads import *
 import requests
 from datetime import datetime
 from time import sleep
+import pandas as pd
 
 # manejar interrupciones a programa
 def safe_exit(signum, frame):
@@ -62,13 +63,14 @@ def dig_verificador(rut):
 
 # - HTTP requests a server con datos de usuarios -
 def get_persona(rut):
-	response = requests.get(url=server_url+"/get_persona", 
-							params={'rut':rut})
+	response = pd.read_csv("ruts.csv")
+	persona = response[response['Rut'] == rut].to_dict(orient='records')
+	#response = requests.get(url=server_url+"/get_persona", 
+	#						params={'rut':rut})
 	# esta parte del codigo depende de la implementacion del server del fablab
 	# puede variar el valor de retorno en caso de no encontrar a nadie
 	#json.loads(response.decode('utf-8'))
-	persona = response.json()
-
+	#persona = response.json()
 	print("[get_persona] persona:", persona)
 	return persona
 
