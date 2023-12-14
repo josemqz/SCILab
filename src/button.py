@@ -12,6 +12,6 @@ def button_callback(channel):
 
 GPIO.add_event_detect(15, GPIO.RISING, callback=button_callback)
 
-# input()
+#input()
 
-# GPIO.cleanup()
+#GPIO.cleanup()

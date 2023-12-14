@@ -63,8 +63,9 @@ def dig_verificador(rut):
 
 # - HTTP requests a server con datos de usuarios -
 def get_persona(rut):
-	response = pd.read_csv("ruts.csv")
-	persona = response[response['Rut'] == rut].to_dict(orient='records')
+	data = pd.read_csv("ruts.csv")
+	#print(response[response['Rut']==rut])
+	persona = data[data['Rut'] == rut].to_dict(orient='records')
 	#response = requests.get(url=server_url+"/get_persona", 
 	#						params={'rut':rut})
 	# esta parte del codigo depende de la implementacion del server del fablab
@@ -73,6 +74,7 @@ def get_persona(rut):
 	#persona = response.json()
 	print("[get_persona] persona:", persona)
 	return persona
+#	return persona
 
 # post ingreso a BD
 def add_ingreso(id):
@@ -191,13 +193,15 @@ def ingreso_qr(lock):
 				# continue
 
 			# modificar segun comportamiento de server real
-			if persona['status'] == 200:
+			#if persona['status'] == 200:
+			if len(persona) > 0:
 				
 				print("Coincidencia de RUT!")
+				persona = persona[0]
 				ingreso(1)
 
 				# HTTP POST request para registrar visita y hora
-				add_ingreso(persona['id'])
+				#add_ingreso(persona['Rut'])
 
 			else:
 				print("RUT no encontrado.")
@@ -234,7 +238,7 @@ def ingreso_boton(lock):
 		runningButton = False
 		pressedButton = False
 
-
+print("a")
 # - configuración threads -
 lock = threading.Lock()
 
@@ -264,7 +268,7 @@ for t in threads:
 #l = 0 # TEST
 while(1):
 	#l+=1 # TEST
-	
+
 	hora_act = datetime.now().time()
 	#print(hora_act) # TEST
 	
@@ -283,7 +287,7 @@ while(1):
 		
 	if not threadKeypad.is_alive():
 		print("creating new instance threadKeypad")
-		threadKeypad = threading.Thread(target=ingreso_keyboard, args=(lock,))
+		threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock,))
 		threadKeypad.start()
 
 	if not threadButton.is_alive():
