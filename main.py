@@ -18,7 +18,7 @@
 # cambiar threading por multiprocessing
 
 # como importar automaticamente desde src
-from src.keypad import *
+#from src.keypad import *
 from src.lcd import *
 from src.relay import *
 from src.button import *
@@ -142,7 +142,19 @@ def ingreso_qr(lock):
 			# flag global para indicar bloqueo
 			global runningQR
 			runningQR = True
-
+			
+			# verificar codigo de numpad
+			if len(qr) == 4:
+				if qr == "1780":
+					print("Contraseña correcta")
+					ingreso(1)
+					return
+					
+				else:
+					print("Contraseña incorrecta")
+					ingreso(0)
+					return
+					
 			# verificacion tipo de tarjeta
 			# TUI: 87004 (codigo 5 digitos) (RUT sin digito verificador)
 			# RUT: https://portal.sidivregistrocivil.cl/docstatus&RUN=(RUT)&type=CEDULA&...
@@ -212,6 +224,7 @@ def ingreso_qr(lock):
 
 
 # funcion de thread de keypad
+"""
 def ingreso_keypad(lock):
 	global runningKeypad
 	print("\nEsperando codigo en keypad...")
@@ -223,46 +236,41 @@ def ingreso_keypad(lock):
 			runningKeypad = True
 			ingreso(1)
 			runningKeypad = False
+"""
 
 # funcion de thread de boton
 def ingreso_boton(lock):
 	global pressedButton
 	
+	# no funciona un while
 	while not pressedButton:
-		pass	
+		pass
 	
 	with lock:
 		global runningButton
 		runningButton = True
-		ingreso(1, do_lcd_print=False)
+		ingreso(1)  	#, do_lcd_print=False)
 		runningButton = False
 		pressedButton = False
 
-print("a")
 # - configuración threads -
 lock = threading.Lock()
 
 # flag para thread de cada operacion
 runningButton = False
-runningKeypad = False
+#runningKeypad = False
 runningQR = False
 
-# event1 = threading.Event()
-# event2 = threading.Event()
-# event3 = threading.Event()
-
 threadButton = threading.Thread(target=ingreso_boton, args=(lock,))
-threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock,))
+#threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock,))
 threadQR = threading.Thread(target=ingreso_qr, args=(lock,))
 
-# threadButton = StoppableThread(target=ingreso_boton, args=(lock))
-# threadKeypad = StoppableThread(target=ingreso_keypad, args=(lock))
-# threadQR = StoppableThread(target=ingreso_qr, args=(lock))
-
-threads = [threadButton, threadKeypad, threadQR]
+threads = [threadButton, threadQR] #, threadKeypad]
 
 for t in threads:
 	t.start()
+
+lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
 
 # loop
 #l = 0 # TEST
@@ -272,8 +280,6 @@ while(1):
 	hora_act = datetime.now().time()
 	#print(hora_act) # TEST
 	
-	#if 
-	lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
 	
 	# cambiar comportamiento por horario o codigo en numpad
 	# if (hora_act >= hora_min and hora_act <= hora_max):
@@ -282,15 +288,19 @@ while(1):
 	
 	if not threadQR.is_alive():
 		print("creating new instance threadQR")
+		lcd_print(lcd, "Bienvenid@ a", "FabLab!")
 		threadQR = threading.Thread(target=ingreso_qr, args=(lock,))
 		threadQR.start()
-		
+	
+	"""	
 	if not threadKeypad.is_alive():
 		print("creating new instance threadKeypad")
 		threadKeypad = threading.Thread(target=ingreso_keypad, args=(lock,))
 		threadKeypad.start()
+	"""
 
 	if not threadButton.is_alive():
 		print("creating new instance threadButton")
+		lcd_print(lcd, "Bienvenid@ a", "FabLab!")
 		threadButton = threading.Thread(target=ingreso_boton, args=(lock,))
 		threadButton.start()
