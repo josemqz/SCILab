@@ -12,9 +12,6 @@
 # Configuracion lector QR *
 # Configuracion sensor NFC (later)
 
-# arreglar funcionamiento boton
-# arreglar cableado teclado
-# cambiar threading por multiprocessing
 
 # - Parametros -
 DEBUG = True
@@ -33,6 +30,7 @@ from datetime import datetime	# tiempo
 from time import sleep			# tiempo de espera
 import pandas as pd				# pandas :)
 
+# para capturar teclas presionadas
 import tty
 import sys
 import termios
@@ -346,6 +344,7 @@ def ingreso_boton(lock):
 		
 		runningButton = False
 		pressedButton = False
+
 
 # - Configuración threads -
 lock = threading.Lock()
