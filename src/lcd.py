@@ -17,16 +17,19 @@
     ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 """
+# Nota: Si se preguntan por qué el lcd imprime lento los mensajes 
+# es debido a la longitud de los cables sumado al uso del protocolo I2C
 
 from rpi_lcd import LCD
 
 """
-lcd: instancia de LCD()
-msg1: mensaje a imprimir en primera fila
-msg2: mensaje a imprimir en segunda fila
-do_clear: vaciar pantalla antes de imprimir
+Método para imprimir mensajes personalizados en pantalla LCD
+---
+lcd (obj): instancia de LCD()
+msg1 (String): mensaje a imprimir en primera fila
+msg2 (String): mensaje a imprimir en segunda fila
+do_clear (bool): vaciar pantalla antes de imprimir
 """
-
 def lcd_print(lcd, msg1, msg2="", do_clear=True):
 
     if do_clear:

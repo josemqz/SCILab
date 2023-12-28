@@ -6,37 +6,43 @@
 
 # configurar registro para personas nuevas (Forms o Classroom)
 
-# desactivar interfaz grafica predeterminadamente
-# crontab: systemctl stop lightdm ?
-
 # Configuracion lector QR *
-# Configuracion sensor NFC (later)
+# Configuracion sensor NFC (later?)
 
 
 # - Parametros -
+# variable que permite la impresion de mensajes de debug
 DEBUG = True
 # direccion de server con BD de personas registradas
 server_url = "http://127.0.0.1:5000"
 
 
 # - Modulos -
-from src.lcd import *
-from src.relay import *
 from src.button import *
-from src.threads import *
+import src.lcd as s_lcd
+import src.relay as s_relay
+from utils.dec import dec
 
 import requests					# HTTP requests
 from datetime import datetime	# tiempo
 from time import sleep			# tiempo de espera
 import pandas as pd				# pandas :)
 
-# para capturar teclas presionadas
+# módulos para capturar teclas presionadas
 import tty
 import sys
 import termios
 
 
-lcd = LCD()
+# instancia de lcd
+lcd = s_lcd.LCD()
+
+# obtener codigos de acceso
+keys = dec()
+if len(keys) <= 0:
+	print("Contraseña de acceso incorrecta.")
+	print("Sistema detenido.\n")
+	exit(1)
 
 # manejar interrupciones a programa
 def safe_exit(signum, frame):
@@ -52,7 +58,7 @@ signal(SIGHUP, safe_exit)
 signal(SIGINT, safe_exit)
 
 
-# horarios de funcionamiento de laboratorio (legacy)
+# horarios de funcionamiento de laboratorio (deprecated)
 # hora_min = datetime.strptime("10:55","%H:%M").time()
 # hora_max = datetime.strptime("17:00","%H:%M").time()
 
@@ -71,6 +77,10 @@ def dig_verificador(rut):
 
 
 # - HTTP requests a server con datos de usuarios -
+# TODO: reemplazar metodos de lectura de csv por requests a BD
+
+# obtener datos de persona de BD a partir de rut
+# rut (String): rut de persona obtenido de tarjeta de identificación, sin puntos y con guión.
 def get_persona(rut):
 	data = pd.read_csv("ruts.csv")
 	
@@ -89,6 +99,7 @@ def get_persona(rut):
 		print("[get_persona] persona:", persona)
 	return persona
 
+# TODO: implementar agregar datos de ingreso a BD
 # post ingreso a BD
 def add_ingreso(id):
 	# lo mismo, depende del funcionamiento del server cuando haya que obtener el tiempo
@@ -104,7 +115,7 @@ def add_ingreso(id):
 		print("Fallo al añadir Ingreso en BD.")
 	"""
 
-# acciones al verificar identidad
+# método para manejar acciones al verificar identidad
 # autorizacion: bool, indica si se debe permitir el ingreso
 # do_lcd_print: indica si debe imprimir en lcd estado de ingreso
 def ingreso(autorizacion, do_lcd_print=True):
@@ -114,23 +125,23 @@ def ingreso(autorizacion, do_lcd_print=True):
 		# senial a relay
 		if DEBUG:
 			print("Relay activado.")
-		open_relay(True)
+		s_relay.open_relay(True)
 		
 		if do_lcd_print:
-			lcd_print(lcd, "Ingreso", "- autorizado -")
+			s_lcd.lcd_print(lcd, "Ingreso", "- autorizado -")
 		if DEBUG:
 			print("Ingreso autorizado.")	
 
 		sleep(5)
-		open_relay(False)
+		s_relay.open_relay(False)
 		if do_lcd_print:
 			lcd.clear()
 		
 	else:
 		
-		open_relay(False)
+		s_relay.open_relay(False)
 		if do_lcd_print:
-			lcd_print(lcd, "Ingreso", "- denegado -")
+			s_lcd.lcd_print(lcd, "Ingreso", "- denegado -")
 		if DEBUG:
 			print("Ingreso denegado.")
 			# deberia solo mantenerse activado el bloqueo
@@ -148,6 +159,7 @@ def ingreso(autorizacion, do_lcd_print=True):
 orig_settings=termios.tcgetattr(sys.stdin)
 
 # funcion de thread de lector qr y numpad
+# lock (obj): variable para permitir bloqueo de threads
 def ingreso_cod(lock):
 
 	# identificar teclas presionadas
@@ -178,15 +190,15 @@ def ingreso_cod(lock):
 				print("pressed", chr(x))
 			key_input += chr(x) # chr convierte ASCII a caracter
 			
-		# si son <8 caracteres, es un codigo de ingreso
+		# si son menos de 8 caracteres, corresponde a un codigo de ingreso
 		if len(key_input) > 8:
 			is_code = False
 			
 			# TODO: resolver problema de velocidad de impresion en lcd
 			# ya que imprime los caracteres del codigo demasiado lento
-			#lcd_print(lcd, len(key_input) * "*")
+			#s_lcd.lcd_print(lcd, len(key_input) * "*")
 		
-		# en caso que se borren caracteres hasta llegar a <8
+		# en caso que se borren caracteres hasta llegar a menos de 8
 		else:
 			is_code = True
 		
@@ -198,22 +210,6 @@ def ingreso_cod(lock):
 	key_input = key_input[:-1]
 	if DEBUG:
 		print("input:",key_input)
-
-	
-	"""
-	# BEGIN TEST v v v
-	if l%8== 0:
-		qr = "87004123457524654"
-	elif l%10 == 0:
-		qr = "https://gob.cl/q?RUN=7524654-K&type=CEDULA&serial=123456"
-	elif l%4 == 0:
-		qr ="https://gob.cl/q?RUN=19948797-3&type=CEDULA&serial=123456"
-	elif l%5 == 0:
-		qr = "87004123459773126"
-	else:
-		qr=""
-	# END TEST
-	"""
 	
 	# bloquear thread si hay input
 	len_input = len(key_input)
@@ -226,7 +222,8 @@ def ingreso_cod(lock):
 			
 			# verificar codigo de numpad
 			if is_code:
-				if key_input == "1780":
+				# si se encuentra en la lista de claves registradas
+				if key_input in keys:
 					if DEBUG:
 						print("Contraseña correcta")
 					ingreso(1)
@@ -238,7 +235,7 @@ def ingreso_cod(lock):
 
 			# verificar codigo QR
 			else:
-						
+				
 				# Verificacion tipo de tarjeta
 
 				# TUI: 87004 (codigo 5 digitos) (RUT sin digito verificador)
@@ -248,7 +245,7 @@ def ingreso_cod(lock):
 				# TUI
 				if cod_card == "87004":
 					
-					lcd_print(lcd, "Verificando", "TUI...")
+					s_lcd.lcd_print(lcd, "Verificando", "TUI...")
 					# num_tui = key_input[5:10]
 					rut = key_input[10:]
 					
@@ -262,7 +259,7 @@ def ingreso_cod(lock):
 				# CI
 				elif cod_card == "https":
 					
-					lcd_print(lcd, "Verificando", "CI...")
+					s_lcd.lcd_print(lcd, "Verificando", "CI...")
 					rut = key_input.split('RUN=')[1].split('&')[0]
 					if DEBUG:
 						print("rut:", rut)
@@ -272,7 +269,7 @@ def ingreso_cod(lock):
 				# Tarjeta sin formato valido
 				else:
 					
-					#lcd_print(lcd, "Tarjeta", "invalida.")
+					#s_lcd.lcd_print(lcd, "Tarjeta", "invalida.")
 					ingreso(0)
 					if DEBUG:
 						print("Tarjeta invalida.\n")
@@ -288,7 +285,7 @@ def ingreso_cod(lock):
 					if DEBUG:
 						print("Error de conexion a servidor")
 					
-					lcd_print(lcd, "Error de", "conexion")
+					s_lcd.lcd_print(lcd, "Error de", "conexion")
 					runningCod = False
 					return
 
@@ -321,6 +318,8 @@ def ingreso_cod(lock):
 
 pressedButton = False # variable que indica si boton ha sido presionado
 
+# Método ejecutado al presionar botón, lo que cambia el valor de pressedButton,
+# terminando con el ciclo while de ingreso_boton(), e inicializando así la apertura
 def button_callback(channel):
 	global pressedButton
 	if DEBUG:
@@ -330,6 +329,7 @@ def button_callback(channel):
 GPIO.add_event_detect(pin, GPIO.RISING, callback=button_callback)
 
 # funcion de thread de boton
+# lock (obj): variable para permitir bloqueo de threads
 def ingreso_boton(lock):
 	global pressedButton
 	while not pressedButton:
@@ -363,14 +363,12 @@ for t in threads:
 
 
 # print inicial en LCD
-lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
+s_lcd.lcd_print(lcd, "Bienvenid@ a", "FabLab!", False)
 
 
 # - LOOP -
-#l = 0 # TEST
 hora_inicio = datetime.now()
 while(1):
-	#l+=1 # TEST
 
 	# tiempo total de ejecucion
 	t_ejecucion = datetime.now() - hora_inicio
@@ -380,16 +378,16 @@ while(1):
 	# refrescar lcd cada 5 minutos (en caso de bugs)
 	if int(t_ejecucion.total_seconds()) % 300 == 0:
 		#print("sec:", int(t_ejecucion.total_seconds()))
-		lcd_print(lcd, "Bienvenid@ a", "FabLab!")
+		s_lcd.lcd_print(lcd, "Bienvenid@ a", "FabLab!")
 	
-	# cambiar comportamiento por horario o codigo en numpad
+	# cambiar comportamiento por horario o codigo en numpad (deprecated)
 	# if (hora_act >= hora_min and hora_act <= hora_max):
 	
 	if not threadCod.is_alive():
 		if DEBUG:
 			print("creating new instance threadCod")
 		if not runningButton:
-			lcd_print(lcd, "Bienvenid@ a", "FabLab!")
+			s_lcd.lcd_print(lcd, "Bienvenid@ a", "FabLab!")
 		threadCod = threading.Thread(target=ingreso_cod, args=(lock,))
 		threadCod.start()
 	
@@ -397,6 +395,6 @@ while(1):
 		if DEBUG:
 			print("creating new instance threadButton")
 		if not runningCod:
-			lcd_print(lcd, "Bienvenid@ a", "FabLab!")
+			s_lcd.lcd_print(lcd, "Bienvenid@ a", "FabLab!")
 		threadButton = threading.Thread(target=ingreso_boton, args=(lock,))
 		threadButton.start()
