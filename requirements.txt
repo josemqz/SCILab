@@ -9,6 +9,7 @@ pandas==2.1.4
 pidng==4.0.9
 python-apt==2.2.1
 python-dateutil==2.8.2
+python-gnupg==0.5.2
 python-prctl==1.7
 pytz==2023.3.post1
 requests==2.25.1
